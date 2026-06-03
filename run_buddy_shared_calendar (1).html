@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏃‍♂️ 跑友五人組 | 實時約跑日曆</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts for premium Look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Confetti JS for celebratory effect when 3+ friends are free -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e', // Run-themed energy green
+                            600: '#16a34a',
+                            700: '#15803d',
+                            navy: '#0f172a'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-subtle': 'bounceSubtle 1s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        bounceSubtle: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-4px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for beautiful dashboard lists */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(241, 245, 249, 0.5);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(203, 213, 225, 0.8);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+        /* Pulse glow for dates with 3+ friends attendance */
+        .perfect-day-glow {
+            box-shadow: 0 0 15px rgba(234, 179, 8, 0.5);
+            border: 2px solid #eab308 !important;
+        }
+        /* Custom weather scroll container hide scrollbar on desktop but keep functional */
+        .weather-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        .weather-scroll::-webkit-scrollbar-track {
+            background: rgba(241, 245, 249, 0.2);
+        }
+        .weather-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col antialiased">
+
+    <!-- Top Interactive Navigation & Status Bar -->
+    <header class="bg-brand-navy text-white shadow-lg sticky top-0 z-40 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-yellow-400 to-brand-500 p-2.5 rounded-2xl shadow-inner text-brand-navy transform hover:rotate-12 transition-transform duration-300">
+                    <i class="fa-solid fa-person-running text-2xl animate-bounce-subtle"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                        跑友五人組 <span class="text-brand-500 font-bold text-sm bg-brand-500/20 px-2.5 py-0.5 rounded-full border border-brand-500/30">實時約跑日曆</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">連埋你一共 5 位老友，只要有 3 人或以上得閒就即時成團起跑！⚡</p>
+                </div>
+            </div>
+            
+            <!-- Realtime Connection Status Badge -->
+            <div class="flex items-center space-x-2 bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-500 opacity-75"></span>
+                    <span id="connection-indicator-dot" class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                <span id="connection-status-text" class="text-xs font-semibold tracking-wide text-slate-300">雲端連線中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500">
+        <div class="relative flex items-center justify-center">
+            <div class="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-brand-500"></div>
+            <i class="fa-solid fa-person-running text-3xl text-brand-500 absolute animate-pulse"></i>
+        </div>
+        <h2 class="text-xl font-bold mt-6 tracking-wider">正在載入專屬約跑月曆...</h2>
+        <p class="text-sm text-slate-400 mt-2">正在與雲端資料庫及天文台連線中</p>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col gap-6">
+        
+        <!-- 9-Day Weather Forecast Widget -->
+        <section class="bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
+            <div class="absolute -right-12 -top-12 opacity-10 text-9xl">
+                <i class="fa-solid fa-cloud-sun-rain"></i>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2 relative z-10">
+                <div>
+                    <h2 class="text-lg font-extrabold flex items-center gap-2 tracking-wide">
+                        <i class="fa-solid fa-temperature-half text-amber-400 animate-pulse"></i>
+                        香港天文台 9天約跑天氣預報
+                    </h2>
+                    <p class="text-xs text-blue-100/80">自動獲取最新數據，落雨定放晴一眼睇晒，方便約跑！☀️🌧️</p>
+                </div>
+                <span class="text-[10px] bg-white/20 px-2.5 py-1 rounded-full border border-white/10 font-mono tracking-wide" id="weather-update-time">
+                    資料同步中...
+                </span>
+            </div>
+
+            <!-- Weather cards scrollable area -->
+            <div id="weather-container" class="flex gap-3 overflow-x-auto pb-2 weather-scroll relative z-10">
+                <!-- Weather Skeleton Loading -->
+                <div class="animate-pulse flex gap-3 w-full">
+                    <div class="bg-white/10 h-36 w-32 rounded-2xl flex-shrink-0"></div>
+                    <div class="bg-white/10 h-36 w-32 rounded-2xl flex-shrink-0"></div>
+                    <div class="bg-white/10 h-36 w-32 rounded-2xl flex-shrink-0"></div>
+                    <div class="bg-white/10 h-36 w-32 rounded-2xl flex-shrink-0"></div>
+                    <div class="bg-white/10 h-36 w-32 rounded-2xl flex-shrink-0"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 1: Friend Selection Header Banner -->
+        <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="bg-indigo-100 text-indigo-700 w-7 h-7 flex items-center justify-center rounded-lg text-sm font-black">1</span>
+                        第一步：邊位朋友正在使用此網頁？
+                    </h2>
+                    <p class="text-sm text-slate-500">先選擇你的名字，然後直接點選下方月曆日期</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="openNicknameModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition flex items-center gap-1.5 border border-slate-200">
+                        <i class="fa-solid fa-user-pen"></i> 修改跑友名稱
+                    </button>
+                    <button onclick="copyShareLink()" class="text-xs bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-brand-500/10 transition flex items-center gap-1.5 active:scale-95">
+                        <i class="fa-solid fa-share-nodes animate-pulse"></i> 分享給跑友
+                    </button>
+                </div>
+            </div>
+
+            <!-- Friend Badges Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="friend-selector-grid">
+                <div class="animate-pulse bg-slate-100 h-16 rounded-xl col-span-5"></div>
+            </div>
+        </section>
+
+        <!-- Step 2: Calendar & Info Side Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Calendar Grid (Spans 8 cols on large screens) -->
+            <section class="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-6 flex flex-col">
+                <!-- Month Navigator Header -->
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+                    <button onclick="navigateMonth(-1)" class="p-2.5 rounded-xl hover:bg-slate-100 text-slate-600 transition border border-slate-200/60 active:scale-95">
+                        <i class="fa-solid fa-chevron-left text-sm"></i>
+                    </button>
+                    <h3 id="calendar-month-year" class="text-xl font-extrabold text-slate-800 tracking-wide select-none">
+                        載入月份中...
+                    </h3>
+                    <button onclick="navigateMonth(1)" class="p-2.5 rounded-xl hover:bg-slate-100 text-slate-600 transition border border-slate-200/60 active:scale-95">
+                        <i class="fa-solid fa-chevron-right text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Calendar Days of Week Label Header -->
+                <div class="grid grid-cols-7 text-center text-xs font-bold text-slate-400 mb-2 tracking-wider">
+                    <div class="text-red-500 py-1">日</div>
+                    <div class="py-1">一</div>
+                    <div class="py-1">二</div>
+                    <div class="py-1">三</div>
+                    <div class="py-1">四</div>
+                    <div class="py-1">五</div>
+                    <div class="text-blue-500 py-1">六</div>
+                </div>
+
+                <!-- Calendar Grid Container -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1.5 sm:gap-2 flex-grow min-h-[360px]">
+                    <!-- Javascript will render monthly grid tiles dynamically here -->
+                </div>
+                
+                <!-- Quick Legend and tips -->
+                <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500 items-center justify-between">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <span class="flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-md bg-yellow-100 border border-yellow-300"></span> 3人或以上成團日 (極力推薦! 🎉)</span>
+                        <span class="flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-md bg-green-50 border border-green-200"></span> 1-2人有空的日子</span>
+                        <span class="flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-md bg-slate-100 border border-slate-300 opacity-50"></span> 過去的日子 (灰色標明)</span>
+                    </div>
+                    <div class="text-slate-400 italic">
+                        *再次點擊相同日期可取消「得閒」標記。
+                    </div>
+                </div>
+            </section>
+
+            <!-- Unified Sidebar (Spans 4 cols on large screens) -->
+            <aside class="lg:col-span-4 flex flex-col gap-6">
+                
+                <!-- Gold Star Dates (3+ friends) -->
+                <div class="bg-gradient-to-br from-brand-navy to-slate-900 text-white rounded-3xl p-6 shadow-md relative overflow-hidden">
+                    <div class="absolute -right-8 -bottom-8 opacity-10 text-9xl">
+                        <i class="fa-solid fa-award"></i>
+                    </div>
+
+                    <h4 class="text-base font-bold text-yellow-400 flex items-center gap-2 mb-4">
+                        <i class="fa-solid fa-trophy text-yellow-400 animate-pulse"></i> 
+                        【黃金起跑日】 3人或以上成團日
+                    </h4>
+                    
+                    <div id="perfect-dates-list" class="space-y-2.5 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Rendered by JS -->
+                        <div class="text-slate-400 text-sm italic py-2">本月暫時未有3人成團的日子，快點去標記你的時間啦！</div>
+                    </div>
+                </div>
+
+                <!-- Runner Stat Board -->
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <h4 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <i class="fa-solid fa-chart-simple text-brand-500"></i> 
+                        本月跑友出席率統計
+                    </h4>
+                    
+                    <div id="friends-stats-container" class="space-y-4">
+                        <div class="animate-pulse space-y-3">
+                            <div class="h-4 bg-slate-100 rounded w-2/3"></div>
+                            <div class="h-4 bg-slate-100 rounded w-1/2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Practical Running Tips Mini widget -->
+                <div class="bg-green-50/50 rounded-3xl p-5 border border-green-100/50">
+                    <h5 class="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-info text-brand-500"></i> 約跑小建議
+                    </h5>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        根據研究，一齊同朋友定期定點跑步不但更容易堅持，仲可以降低疲勞感並增加安多酚分泌！如果約唔到 5 個人，有 3 個人一樣好玩！
+                    </p>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-500 text-xs py-8 mt-12 border-t border-slate-800 text-center">
+        <p class="mb-2">© 2026 跑友五人組 | 專屬約跑月曆. 版權所有.</p>
+        <p class="text-slate-600">實時同步由雲端安全驅動 • 自豪地為廣大跑友服務 🏃‍♂️💨</p>
+    </footer>
+
+    <!-- MODAL: SHARE LINK CONFIGURATION (PREVENTS 404 ERRORS) -->
+    <div id="share-link-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl shadow-xl w-full max-w-md transform scale-95 transition-transform duration-300 overflow-hidden">
+            <div class="bg-indigo-950 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-share-nodes text-yellow-400"></i> 分享給跑友 (解決 404 問題)
+                </h3>
+                <button onclick="closeShareLinkModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 leading-relaxed">
+                    <p class="font-bold mb-1 flex items-center gap-1.5 text-amber-900">
+                        <i class="fa-solid fa-circle-exclamation text-amber-600 animate-pulse"></i> 點解朋友打開會 404？
+                    </p>
+                    <p>
+                        因為你目前正在**開發預覽模式**，當前視窗的臨時網址（包含 preview / sandbox 字眼）已被加密保護，只有你看得到。朋友點開它會直接顯示 404 Error。
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    <h4 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-regular fa-lightbulb text-indigo-500"></i> 獲得正確連結的 2 個簡單方法：
+                    </h4>
+                    <ol class="text-xs text-slate-600 list-decimal pl-4 space-y-2">
+                        <li>
+                            <strong class="text-slate-800">方法 A（最推薦）：</strong> 直接複製你瀏覽器**最頂端網址列**（即含有專案與工作區 ID 的全網址），發給朋友，他們登入同一個工作區就能共用。
+                        </li>
+                        <li>
+                            <strong class="text-slate-800">方法 B（正式發佈）：</strong> 點擊本平台右上角的 <strong class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">Deploy</strong> 或 <strong class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">Publish</strong> 按鈕將其轉為公開網站，並將發佈後的連結填在下方：
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5">設定你的正式/發佈分享網址：</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="custom-share-url-input" 
+                               class="bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 flex-grow focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 font-mono" 
+                               placeholder="https://your-shared-calendar.html">
+                        <button onclick="saveCustomShareUrl()" class="bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs px-4 rounded-xl transition shadow-md shadow-brand-500/10 shrink-0">
+                            儲存並複製
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1.5">儲存後，以後在主畫面點選「分享給跑友」將會自動一鍵複製此網址！</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4 flex justify-between items-center border-t border-slate-100">
+                <button onclick="copyCurrentSandboxUrl()" class="text-xs text-slate-400 hover:text-slate-600 transition flex items-center gap-1">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 強制複製目前的臨時預覽網址
+                </button>
+                <button onclick="closeShareLinkModal()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                    關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NICKNAME EDIT MODAL -->
+    <div id="nickname-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl shadow-xl w-full max-w-md transform scale-95 transition-transform duration-300 overflow-hidden">
+            <div class="bg-brand-navy text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-yellow-400"></i> 修改跑友名字
+                </h3>
+                <button onclick="closeNicknameModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <form id="nickname-form" onsubmit="saveNicknames(event)" class="p-6 space-y-4">
+                <p class="text-xs text-slate-500 mb-2">請在此修改你們 5 個跑友的名字。儲存後，名字將自動實時同步給所有朋友！</p>
+                
+                <div class="space-y-3" id="nickname-inputs-container">
+                    <!-- 5 Inputs Generated by JS -->
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                    <button type="button" onclick="closeNicknameModal()" class="px-4 py-2 text-slate-500 hover:text-slate-700 font-semibold text-sm transition">
+                        取消
+                    </button>
+                    <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm px-5 py-2 rounded-xl shadow-md shadow-brand-500/15 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> 儲存並同步名字
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION TOAST WRAPPER -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+    <!-- FIREBASE & CORE APPLICATION LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global state and UI references
+        let db;
+        let auth;
+        let currentUser = null;
+        let appId = typeof __app_id !== 'undefined' ? __app_id : 'run-buddy-cal-2026';
+        let firebaseConfig;
+
+        // Dynamic State
+        let currentYearMonth = new Date(2026, 5, 1); // June 2026 as starting focus point
+        let activeFriendIndex = 0; // Default is the first friend ("我")
+        
+        // System Today's Date Context (June 3, 2026)
+        const todayDateObj = new Date(2026, 5, 3); // Month is 0-indexed (June = 5)
+        
+        // Base structures
+        let friendsNames = ['跑友我', '跑友 A', '跑友 B', '跑友 C', '跑友 D'];
+        const friendColors = [
+            { bg: 'bg-emerald-500', text: 'text-emerald-500', lightBg: 'bg-emerald-50', border: 'border-emerald-200', activeRing: 'ring-emerald-400' }, // Green
+            { bg: 'bg-indigo-500', text: 'text-indigo-500', lightBg: 'bg-indigo-50', border: 'border-indigo-200', activeRing: 'ring-indigo-400' }, // Blue
+            { bg: 'bg-rose-500', text: 'text-rose-500', lightBg: 'bg-rose-50', border: 'border-rose-200', activeRing: 'ring-rose-400' }, // Red
+            { bg: 'bg-amber-500', text: 'text-amber-500', lightBg: 'bg-amber-50', border: 'border-amber-200', activeRing: 'ring-amber-400' }, // Orange
+            { bg: 'bg-purple-500', text: 'text-purple-500', lightBg: 'bg-purple-50', border: 'border-purple-200', activeRing: 'ring-purple-400' } // Purple
+        ];
+
+        // 2026 HK Public Holidays
+        const publicHolidays2026 = {
+            "2026-01-01": { name: "元旦", isHoliday: true },
+            "2026-02-17": { name: "農曆年初一", isHoliday: true },
+            "2026-02-18": { name: "農曆年初二", isHoliday: true },
+            "2026-02-19": { name: "農曆年初三", isHoliday: true },
+            "2026-04-03": { name: "耶穌受難節", isHoliday: true },
+            "2026-04-04": { name: "耶穌受難節翌日", isHoliday: true },
+            "2026-04-05": { name: "清明節", isHoliday: true },
+            "2026-04-06": { name: "復活節星期一", isHoliday: true },
+            "2026-04-07": { name: "清明節翌日", isHoliday: true },
+            "2026-05-01": { name: "勞動節", isHoliday: true },
+            "2026-05-24": { name: "佛誕", isHoliday: true },
+            "2026-05-25": { name: "佛誕翌日", isHoliday: true },
+            "2026-06-19": { name: "端午節", isHoliday: true },
+            "2026-07-01": { name: "香港特別行政區成立紀念日", isHoliday: true },
+            "2026-09-26": { name: "中秋節翌日", isHoliday: true },
+            "2026-10-01": { name: "國慶日", isHoliday: true },
+            "2026-10-19": { name: "重陽節", isHoliday: true },
+            "2026-12-25": { name: "聖誕節", isHoliday: true },
+            "2026-12-26": { name: "聖誕節後第一個周日", isHoliday: true },
+            
+            // Father's Day (Custom marking, not public holiday, won't turn whole cell red by default unless sunday)
+            "2026-06-21": { name: "父親節 👨‍👦", isHoliday: false }
+        };
+        
+        let monthlyAvailabilities = {};
+
+        // Initialize App Setup
+        async function initialize() {
+            try {
+                // Fetch latest weather forecast
+                fetchHKOWeather();
+
+                if (typeof __firebase_config !== 'undefined') {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } else {
+                    console.warn("Firebase config not found, running with local storage fallback.");
+                    setupLocalStorageFallback();
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        updateConnectionIndicator(true);
+                        startRealtimeSync();
+                    } else {
+                        updateConnectionIndicator(false);
+                        showToast("連線中斷", "未能安全登入，請重試。", "error");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase init failed, switching to local storage: ", error);
+                setupLocalStorageFallback();
+            }
+        }
+
+        // Fetch Hong Kong Observatory 9-day Weather API
+        async function fetchHKOWeather() {
+            const weatherContainer = document.getElementById('weather-container');
+            const weatherTime = document.getElementById('weather-update-time');
+            
+            try {
+                // HKO 9-day Weather Forecast API (CORS-enabled)
+                const res = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc');
+                if (!res.ok) throw new Error('Network error fetching HKO');
+                const data = await res.json();
+                
+                if (data && data.weatherForecast) {
+                    renderWeather(data.weatherForecast);
+                    if (weatherTime) {
+                        const now = new Date();
+                        weatherTime.innerText = `天文台同步: ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    }
+                } else {
+                    throw new Error('Invalid HKO format');
+                }
+            } catch (err) {
+                console.warn("HKO API failed or CORS blocked. Rendering high-fidelity mock weather data for June 2026...", err);
+                renderMockWeather();
+                if (weatherTime) weatherTime.innerText = "天文台資訊 (已預載 2026 年初夏)";
+            }
+        }
+
+        // Render weather cards from API output
+        function renderWeather(forecastList) {
+            const container = document.getElementById('weather-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            forecastList.forEach((day, index) => {
+                // Parse Date (Format e.g. "20260604")
+                const rawDate = day.forecastDate; // String
+                const formattedDate = rawDate.length === 8 
+                    ? `${parseInt(rawDate.substring(4, 6))}月${parseInt(rawDate.substring(6, 8))}日` 
+                    : day.forecastDate;
+                
+                // Temp and RH
+                const minTemp = day.forecastMaxtemp?.value || day.forecastMintemp?.value || 25;
+                const maxTemp = day.forecastMaxtemp?.value || 30;
+                const weatherDesc = day.forecastWeather || "大致多雲";
+                const iconId = day.ForecastIcon || day.forecastIcon || 60; // fallback HKO icon index
+                const iconUrl = `https://www.hko.gov.hk/images/HKOWeatherIconPNG/v2/icon${iconId}.png`;
+
+                // Rain probability rating and coloring
+                const psr = day.PSR || "低"; // "高", "中高", "中", "中低", "低"
+                let rainColor = "bg-green-500/20 text-green-300 border-green-500/30";
+                let rainIcon = "fa-droplet-slash";
+                let rainText = "落雨概率：低";
+
+                if (psr === "高" || psr === "Medium High" || psr === "High") {
+                    rainColor = "bg-rose-500/30 text-rose-300 border-rose-500/40 animate-pulse";
+                    rainIcon = "fa-cloud-showers-heavy";
+                    rainText = "落雨概率：極高 🌧️";
+                } else if (psr === "中高" || psr === "中" || psr === "Medium") {
+                    rainColor = "bg-amber-500/25 text-amber-300 border-amber-500/30";
+                    rainIcon = "fa-cloud-rain";
+                    rainText = "落雨概率：中等 🌦️";
+                }
+
+                // Apply special styling if it is June 3 (Today)
+                const isTodayCard = index === 0;
+
+                const cardHtml = `
+                    <div class="flex-shrink-0 w-[145px] bg-white/10 hover:bg-white/15 border ${isTodayCard ? 'border-yellow-400 bg-amber-500/10 ring-1 ring-yellow-400/30' : 'border-white/10'} rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 select-none">
+                        <div>
+                            <div class="flex justify-between items-center text-[10px] text-blue-200">
+                                <span class="font-bold tracking-tight">${formattedDate}</span>
+                                <span class="opacity-80">${day.week}</span>
+                            </div>
+                            
+                            <!-- Temperature Row -->
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xl font-black tracking-tighter">${minTemp}°C - ${maxTemp}°C</span>
+                                <img src="${iconUrl}" alt="weather" class="w-7 h-7 object-contain filter drop-shadow-md" onerror="this.src='https://placehold.co/28x28/475569/ffffff?text=☀️'">
+                            </div>
+
+                            <!-- Weather short description -->
+                            <p class="text-[10px] text-slate-100/95 mt-1.5 line-clamp-2 min-h-[30px] leading-tight font-medium">
+                                ${weatherDesc}
+                            </p>
+                        </div>
+
+                        <!-- Rain indicator -->
+                        <div class="mt-2 text-[9px] px-2 py-1 rounded-lg border flex items-center gap-1 font-bold ${rainColor}">
+                            <i class="fa-solid ${rainIcon}"></i>
+                            <span>${rainText}</span>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        // Local Fallback Weather (June 2026 thematic weather)
+        function renderMockWeather() {
+            const mockData = [
+                { forecastDate: "20260603", week: "星期三", forecastMintemp: { value: 27 }, forecastMaxtemp: { value: 31 }, forecastWeather: "短暫時間有陽光，有幾陣驟雨", ForecastIcon: 54, PSR: "中" },
+                { forecastDate: "20260604", week: "星期四", forecastMintemp: { value: 26 }, forecastMaxtemp: { value: 30 }, forecastWeather: "局部地區有驟雨及雷暴", ForecastIcon: 64, PSR: "中高" },
+                { forecastDate: "20260605", week: "星期五", forecastMintemp: { value: 28 }, forecastMaxtemp: { value: 32 }, forecastWeather: "炎熱及大致天晴，午後局部有驟雨", ForecastIcon: 50, PSR: "低" },
+                { forecastDate: "20260606", week: "星期六", forecastMintemp: { value: 28 }, forecastMaxtemp: { value: 33 }, forecastWeather: "天晴炎熱，市區最高氣溫達 33 度", ForecastIcon: 51, PSR: "低" },
+                { forecastDate: "20260607", week: "星期日", forecastMintemp: { value: 27 }, forecastMaxtemp: { value: 31 }, forecastWeather: "多雲，有幾陣雷暴與大驟雨", ForecastIcon: 65, PSR: "高" },
+                { forecastDate: "20260608", week: "星期一", forecastMintemp: { value: 26 }, forecastMaxtemp: { value: 29 }, forecastWeather: "大致多雲，間中有大雨", ForecastIcon: 63, PSR: "高" },
+                { forecastDate: "20260609", week: "星期二", forecastMintemp: { value: 27 }, forecastMaxtemp: { value: 30 }, forecastWeather: "驟雨逐漸減少，下午短暫陽光", ForecastIcon: 54, PSR: "中" },
+                { forecastDate: "20260610", week: "星期三", forecastMintemp: { value: 27 }, forecastMaxtemp: { value: 31 }, forecastWeather: "短暫陽光，有幾陣微雨", ForecastIcon: 53, PSR: "中低" },
+                { forecastDate: "20260611", week: "星期四", forecastMintemp: { value: 28 }, forecastMaxtemp: { value: 32 }, forecastWeather: "炎熱，局部地區有驟雨，大致天晴", ForecastIcon: 50, PSR: "低" }
+            ];
+            renderWeather(mockData);
+        }
+
+        // Local Storage Fallback
+        function setupLocalStorageFallback() {
+            updateConnectionIndicator(false);
+            const savedNames = localStorage.getItem(`${appId}-names`);
+            if (savedNames) {
+                friendsNames = JSON.parse(savedNames);
+            }
+            const savedAvails = localStorage.getItem(`${appId}-avails`);
+            if (savedAvails) {
+                monthlyAvailabilities = JSON.parse(savedAvails);
+            }
+
+            renderFriendSelectors();
+            renderNicknameInputs();
+            renderCalendar();
+            renderSidebarStats();
+
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        // Connection status modifier
+        function updateConnectionIndicator(connected) {
+            const dot = document.getElementById('connection-indicator-dot');
+            const text = document.getElementById('connection-status-text');
+            if (connected) {
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-brand-500";
+                text.innerText = "雲端同步中";
+                text.className = "text-xs font-semibold tracking-wide text-brand-500";
+            } else {
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-amber-500";
+                text.innerText = "本地儲存模式";
+                text.className = "text-xs font-semibold tracking-wide text-amber-500";
+            }
+        }
+
+        // Start real-time Firestore Sync listeners
+        function startRealtimeSync() {
+            if (!currentUser) return;
+
+            // 1. Sync Nicknames
+            const settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'friends');
+            onSnapshot(settingsDocRef, (docSnap) => {
+                if (docSnap.exists() && docSnap.data().names) {
+                    friendsNames = docSnap.data().names;
+                    renderFriendSelectors();
+                    renderNicknameInputs();
+                    renderCalendar();
+                    renderSidebarStats();
+                } else {
+                    setDoc(settingsDocRef, { names: friendsNames }).catch(e => console.error(e));
+                }
+            }, (error) => {
+                console.error("Nickname sync error: ", error);
+            });
+
+            // 2. Sync Date Availabilities
+            const availCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'availabilities');
+            onSnapshot(availCollectionRef, (querySnapshot) => {
+                const tempAvail = {};
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.date && Array.isArray(data.freeUsers)) {
+                        tempAvail[data.date] = data.freeUsers;
+                    }
+                });
+                monthlyAvailabilities = tempAvail;
+                
+                renderCalendar();
+                renderSidebarStats();
+                
+                const overlay = document.getElementById('loading-overlay');
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.style.display = 'none', 500);
+                }
+            }, (error) => {
+                console.error("Availability sync error: ", error);
+            });
+        }
+
+        // Toggle user availability for a given day
+        window.toggleAvailability = async function(dateStr) {
+            const currentList = monthlyAvailabilities[dateStr] ? [...monthlyAvailabilities[dateStr]] : [];
+            const indexInList = currentList.indexOf(activeFriendIndex);
+            
+            let actionText = "";
+            if (indexInList > -1) {
+                currentList.splice(indexInList, 1);
+                actionText = `已取消 ${dateStr} 得閒`;
+            } else {
+                currentList.push(activeFriendIndex);
+                actionText = `已標記 ${dateStr} 得閒！跑起！🏃‍♂️`;
+            }
+
+            const oldLength = monthlyAvailabilities[dateStr] ? monthlyAvailabilities[dateStr].length : 0;
+            monthlyAvailabilities[dateStr] = currentList;
+            
+            renderCalendar();
+            renderSidebarStats();
+
+            if (!db) {
+                localStorage.setItem(`${appId}-avails`, JSON.stringify(monthlyAvailabilities));
+                showToast("更新成功", actionText, "success");
+                if (currentList.length >= 3 && oldLength < 3) {
+                    triggerPerfectCelebration(currentList.length);
+                }
+                return;
+            }
+
+            const dateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'availabilities', dateStr);
+            try {
+                await setDoc(dateDocRef, {
+                    date: dateStr,
+                    freeUsers: currentList,
+                    updatedAt: new Date().toISOString()
+                });
+                showToast("更新成功", actionText, "success");
+                if (currentList.length >= 3 && oldLength < 3) {
+                    triggerPerfectCelebration(currentList.length);
+                }
+            } catch (err) {
+                console.error("Error updating state: ", err);
+                showToast("儲存失敗", "無法同步至雲端", "error");
+            }
+        }
+
+        // Custom name form submission
+        window.saveNicknames = async function(event) {
+            event.preventDefault();
+            const inputs = document.querySelectorAll('.friend-name-input');
+            const newNames = [];
+            inputs.forEach(input => {
+                newNames.push(input.value.trim() || `跑友`);
+            });
+
+            friendsNames = newNames;
+            renderFriendSelectors();
+            renderCalendar();
+            renderSidebarStats();
+            closeNicknameModal();
+
+            if (!db) {
+                localStorage.setItem(`${appId}-names`, JSON.stringify(newNames));
+                showToast("名字已儲存", "暱稱設定已在本地儲存！✨", "success");
+                return;
+            }
+
+            try {
+                const settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'friends');
+                await setDoc(settingsDocRef, { names: newNames });
+                showToast("名字已同步", "各位跑友名字已同步至雲端！✨", "success");
+            } catch (err) {
+                console.error("Failed to update names: ", err);
+                showToast("更新失敗", "未能寫入雲端名字。", "error");
+            }
+        }
+
+        // Render 5 user picker cards in header banner
+        function renderFriendSelectors() {
+            const container = document.getElementById('friend-selector-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                const color = friendColors[i];
+                const isSelected = activeFriendIndex === i;
+                const activeClasses = isSelected 
+                    ? `ring-4 ${color.activeRing} bg-slate-900 text-white shadow-md border-transparent scale-[1.03]` 
+                    : `bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300`;
+
+                const initialLetter = friendsNames[i] ? friendsNames[i].charAt(0) : '?';
+
+                const cardHtml = `
+                    <button onclick="setActiveFriend(${i})" class="flex items-center space-x-3 p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer ${activeClasses}">
+                        <div class="h-10 w-10 rounded-xl ${color.bg} flex items-center justify-center text-white font-black text-lg shadow-sm">
+                            ${initialLetter}
+                        </div>
+                        <div class="truncate flex-1">
+                            <span class="block text-xs text-slate-400 font-medium tracking-wide">跑友 ${i + 1}</span>
+                            <span class="block text-sm font-bold truncate">${friendsNames[i]}</span>
+                        </div>
+                        ${isSelected ? '<i class="fa-solid fa-circle-check text-brand-500 text-lg"></i>' : ''}
+                    </button>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            }
+        }
+
+        window.setActiveFriend = function(index) {
+            activeFriendIndex = index;
+            renderFriendSelectors();
+            renderCalendar();
+            showToast("切換身分", `你現在正在代表 「${friendsNames[index]}」 點選時間`, "info");
+        };
+
+        // Render Full Interactive Calendar
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            const labelMonthYear = document.getElementById('calendar-month-year');
+            if (!grid || !labelMonthYear) return;
+
+            grid.innerHTML = '';
+
+            const year = currentYearMonth.getFullYear();
+            const month = currentYearMonth.getMonth(); // 0-indexed
+
+            labelMonthYear.innerHTML = `<i class="fa-regular fa-calendar-days text-brand-500 mr-2"></i> ${year}年 ${month + 1}月`;
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const startDayOfWeek = firstDayOfMonth.getDay(); // 0 (Sun) - 6 (Sat)
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const prevMonthDays = new Date(year, month, 0).getDate();
+
+            // Render padding days from previous month
+            for (let i = startDayOfWeek - 1; i >= 0; i--) {
+                const dayNum = prevMonthDays - i;
+                const dummyHtml = `
+                    <div class="bg-slate-50/50 text-slate-300 rounded-xl p-2 min-h-[76px] sm:min-h-[104px] text-xs border border-slate-100 flex flex-col justify-between opacity-50 select-none cursor-not-allowed">
+                        <span class="font-semibold">${dayNum}</span>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', dummyHtml);
+            }
+
+            // Render days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const cellDateObj = new Date(year, month, day);
+                const dayOfWeek = cellDateObj.getDay(); // 0 (Sunday) to 6 (Saturday)
+                
+                // Compare with Today (June 3, 2026)
+                const isToday = year === 2026 && month === 5 && day === 3;
+                
+                // Check if it's in the past
+                const isPast = cellDateObj < todayDateObj && !isToday;
+
+                const attendees = monthlyAvailabilities[dateStr] || [];
+                
+                const isPerfect = attendees.length >= 3;
+                const hasAttendees = attendees.length > 0;
+                const isActiveUserFree = attendees.includes(activeFriendIndex);
+
+                const holidayInfo = publicHolidays2026[dateStr];
+                const isRedDay = holidayInfo && holidayInfo.isHoliday;
+                const isSunday = dayOfWeek === 0;
+                const holidayLabel = holidayInfo ? holidayInfo.name : "";
+
+                let cellBgClass = "bg-white hover:bg-slate-50/85 border-slate-200 text-slate-800";
+                
+                // Rule 1: Sunday must be red-themed just like public holidays
+                let dayNumberColor = "text-slate-800";
+                if (isRedDay || isSunday) {
+                    dayNumberColor = "text-red-500 font-extrabold";
+                }
+
+                if (isPerfect) {
+                    cellBgClass = "bg-yellow-50/80 border-yellow-300 perfect-day-glow transition-all duration-300 transform scale-[1.01]";
+                    dayNumberColor = (isRedDay || isSunday) ? "text-red-600 font-black" : "text-yellow-700 font-extrabold";
+                } else if (hasAttendees) {
+                    cellBgClass = "bg-green-50/40 border-green-200/80 hover:bg-green-50/60";
+                    dayNumberColor = (isRedDay || isSunday) ? "text-red-600 font-black" : "text-brand-700 font-bold";
+                }
+
+                // Rule 2: Highlight today
+                let todayBadgeHtml = '';
+                if (isToday) {
+                    cellBgClass = "bg-blue-50/60 border-indigo-500 ring-2 ring-indigo-400 ring-offset-1";
+                    todayBadgeHtml = `<span class="bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md animate-bounce-subtle">今日</span>`;
+                }
+
+                // Rule 3: Grey out past days
+                let pastStyleClass = '';
+                if (isPast) {
+                    pastStyleClass = 'opacity-40 saturate-50 bg-slate-50 border-slate-100 text-slate-400';
+                    if (isSunday || isRedDay) {
+                        dayNumberColor = "text-red-400/80 font-bold";
+                    } else {
+                        dayNumberColor = "text-slate-400";
+                    }
+                }
+
+                const userIndicator = isActiveUserFree ? 'ring-2 ring-indigo-500/20 bg-indigo-50/20' : '';
+
+                let badgesHtml = '';
+                if (attendees.length > 0) {
+                    badgesHtml = '<div class="flex flex-wrap gap-1 mt-1.5 max-w-full">';
+                    const sortedAttendees = [...attendees].sort((a, b) => a - b);
+                    sortedAttendees.forEach(idx => {
+                        const color = friendColors[idx];
+                        const nameInitial = friendsNames[idx] ? friendsNames[idx].charAt(0) : '?';
+                        badgesHtml += `
+                            <span class="${color.bg} text-white text-[10px] w-5 h-5 font-bold flex items-center justify-center rounded-full shadow-sm" title="${friendsNames[idx]} 得閒">
+                                ${nameInitial}
+                            </span>
+                        `;
+                    });
+                    badgesHtml += '</div>';
+                }
+
+                let holidayHtml = '';
+                if (holidayInfo) {
+                    const labelColorClass = isRedDay ? "text-red-500 font-bold" : "text-indigo-600 font-extrabold bg-indigo-50 px-1 py-0.5 rounded text-[9px]";
+                    holidayHtml = `<span class="${labelColorClass} block text-[9px] mt-0.5 truncate max-w-[80px]" title="${holidayLabel}">${holidayLabel}</span>`;
+                }
+
+                let headerStatus = '';
+                if (isPerfect) {
+                    headerStatus = `<span class="text-yellow-500 animate-pulse text-[11px] font-bold flex items-center gap-0.5"><i class="fa-solid fa-crown text-yellow-400"></i> 成團!</span>`;
+                } else if (attendees.length > 0) {
+                    headerStatus = `<span class="text-slate-400 text-[10px]">${attendees.length}/5 得閒</span>`;
+                }
+
+                const dayHtml = `
+                    <div onclick="toggleAvailability('${dateStr}')" 
+                         class="cursor-pointer border rounded-2xl p-2 min-h-[76px] sm:min-h-[104px] flex flex-col justify-between transition-all duration-200 select-none relative ${cellBgClass} ${userIndicator} ${pastStyleClass} group hover:shadow-sm">
+                        
+                        <div class="flex items-start justify-between">
+                            <div class="flex flex-col">
+                                <div class="flex items-center gap-1">
+                                    <span class="text-sm font-bold tracking-tight ${dayNumberColor}">${day}</span>
+                                    ${todayBadgeHtml}
+                                </div>
+                                ${holidayHtml}
+                            </div>
+                            ${headerStatus}
+                        </div>
+
+                        <div class="mt-auto">
+                            ${badgesHtml}
+                        </div>
+                        
+                        <div class="absolute inset-0 bg-slate-900/5 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity flex items-center justify-center pointer-events-none">
+                            <span class="text-[9px] font-bold bg-white/95 px-2 py-1 rounded-md text-slate-600 shadow-sm border border-slate-200 flex items-center gap-1">
+                                <i class="fa-solid fa-hand-pointer text-indigo-500"></i> ${isActiveUserFree ? '取消' : '標記'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', dayHtml);
+            }
+
+            const totalCellsRendered = startDayOfWeek + daysInMonth;
+            const remainingGridSlots = 42 - totalCellsRendered;
+            const daysToDraw = remainingGridSlots >= 7 ? remainingGridSlots - 7 : remainingGridSlots;
+
+            for (let i = 1; i <= daysToDraw; i++) {
+                const dummyHtml = `
+                    <div class="bg-slate-50/50 text-slate-300 rounded-xl p-2 min-h-[76px] sm:min-h-[104px] text-xs border border-slate-100 flex flex-col justify-between opacity-50 select-none cursor-not-allowed">
+                        <span class="font-semibold">${i}</span>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', dummyHtml);
+            }
+        }
+
+        window.navigateMonth = function(direction) {
+            currentYearMonth.setMonth(currentYearMonth.getMonth() + direction);
+            renderCalendar();
+            renderSidebarStats();
+        }
+
+        // Render Dashboard Stats
+        function renderSidebarStats() {
+            const perfectDatesContainer = document.getElementById('perfect-dates-list');
+            if (!perfectDatesContainer) return;
+
+            const year = currentYearMonth.getFullYear();
+            const month = currentYearMonth.getMonth();
+            const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+            
+            const perfectDays = [];
+            const userActivityCounts = [0, 0, 0, 0, 0];
+
+            Object.keys(monthlyAvailabilities).forEach(dateStr => {
+                if (dateStr.startsWith(prefix)) {
+                    const attendees = monthlyAvailabilities[dateStr] || [];
+                    
+                    attendees.forEach(friendIdx => {
+                        if (friendIdx >= 0 && friendIdx < 5) {
+                            userActivityCounts[friendIdx]++;
+                        }
+                    });
+
+                    // 3 or more is considered a success/celebration day
+                    if (attendees.length >= 3) {
+                        perfectDays.push({ dateStr, count: attendees.length });
+                    }
+                }
+            });
+
+            // Render Golden Days List
+            perfectDatesContainer.innerHTML = '';
+            if (perfectDays.length === 0) {
+                perfectDatesContainer.innerHTML = `
+                    <div class="flex items-center space-x-2 text-slate-400 text-sm py-4">
+                        <i class="fa-solid fa-calendar-xmark text-lg"></i>
+                        <span>本月暫時未有3人成團的日子。大家快點去月曆標記時間啦！</span>
+                    </div>
+                `;
+            } else {
+                perfectDays.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+                perfectDays.forEach(item => {
+                    const { dateStr, count } = item;
+                    const dayParts = dateStr.split('-');
+                    const displayDate = `${dayParts[1]}月${dayParts[2]}日`;
+                    const dayOfWeekText = getHKDayOfWeek(new Date(dateStr));
+
+                    const dateBadgeHtml = `
+                        <div class="bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl p-3 flex items-center justify-between transition duration-200">
+                            <div class="flex items-center space-x-3">
+                                <div class="bg-yellow-400 text-brand-navy rounded-lg p-1.5 text-xs font-black">
+                                    <i class="fa-solid fa-check-double"></i> ${count}人
+                                </div>
+                                <div>
+                                    <span class="block text-sm font-extrabold text-white tracking-wide">${displayDate}</span>
+                                    <span class="block text-xs text-yellow-300 font-medium">${dayOfWeekText}</span>
+                                </div>
+                            </div>
+                            <button onclick="triggerPerfectCelebration(${count})" class="text-xs text-yellow-400 hover:text-white transition flex items-center gap-1 border border-yellow-400/20 hover:border-white px-2.5 py-1 rounded-lg">
+                                🎉 慶祝
+                            </button>
+                        </div>
+                    `;
+                    perfectDatesContainer.insertAdjacentHTML('beforeend', dateBadgeHtml);
+                });
+            }
+
+            // Render Attendance bar charts
+            const statsContainer = document.getElementById('friends-stats-container');
+            if (statsContainer) {
+                statsContainer.innerHTML = '';
+                
+                for (let i = 0; i < 5; i++) {
+                    const count = userActivityCounts[i];
+                    const color = friendColors[i];
+                    
+                    const targetRuns = 15;
+                    const percent = Math.min((count / targetRuns) * 100, 100);
+
+                    const friendStatHtml = `
+                        <div>
+                            <div class="flex justify-between items-center text-xs mb-1.5">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2.5 h-2.5 rounded-full ${color.bg}"></span>
+                                    <span class="font-bold text-slate-700">${friendsNames[i]}</span>
+                                </div>
+                                <span class="font-semibold text-slate-500">本月得閒: <strong class="text-slate-800 text-sm font-extrabold">${count}</strong> 日</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                <div class="${color.bg} h-2.5 rounded-full transition-all duration-500 ease-out" style="width: ${percent || 5}%"></div>
+                            </div>
+                        </div>
+                    `;
+                    statsContainer.insertAdjacentHTML('beforeend', friendStatHtml);
+                }
+            }
+        }
+
+        function getHKDayOfWeek(dateObj) {
+            const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            return days[dateObj.getDay()];
+        }
+
+        window.triggerPerfectCelebration = function(count = 3) {
+            const duration = 2 * 1000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 4,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: ['#22c55e', '#eab308', '#3b82f6', '#ec4899']
+                });
+                confetti({
+                    particleCount: 4,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: ['#22c55e', '#eab308', '#3b82f6', '#ec4899']
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+            showToast("🎉 3人成團起跑！", `今日有 ${count} 個人得閒啦！夠人出發，即刻組團！🏃‍♂️💨`, "success");
+        }
+
+        window.openNicknameModal = function() {
+            const modal = document.getElementById('nickname-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.bg-white').classList.remove('scale-95');
+            }, 50);
+        }
+
+        window.closeNicknameModal = function() {
+            const modal = document.getElementById('nickname-modal');
+            modal.querySelector('.bg-white').classList.add('scale-95');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        window.openShareLinkModal = function() {
+            const modal = document.getElementById('share-link-modal');
+            const input = document.getElementById('custom-share-url-input');
+            const savedUrl = localStorage.getItem(`${appId}-custom-share-url`) || 'https://storyrunner.html';
+            
+            if (input) input.value = savedUrl;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.bg-white').classList.remove('scale-95');
+            }, 50);
+        }
+
+        window.closeShareLinkModal = function() {
+            const modal = document.getElementById('share-link-modal');
+            modal.querySelector('.bg-white').classList.add('scale-95');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        window.saveCustomShareUrl = function() {
+            const input = document.getElementById('custom-share-url-input');
+            const url = input ? input.value.trim() : 'https://storyrunner.html';
+            
+            localStorage.setItem(`${appId}-custom-share-url`, url);
+            
+            // Copy to Clipboard
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = url;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+
+            closeShareLinkModal();
+            showToast("專屬連結設定並複製成功！🎉", `已成功儲存並複製：${url}`, "success");
+        }
+
+        window.copyCurrentSandboxUrl = function() {
+            const dummy = document.createElement('input');
+            const text = window.location.href;
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            closeShareLinkModal();
+            showToast("已強制複製臨時網址 ⚠️", "該網址極可能使其他跑友打開時回傳 404 錯誤，僅限本人於目前會話瀏覽。", "warning");
+        }
+
+        window.copyShareLink = function() {
+            // Check if user set a custom URL, otherwise default directly to https://storyrunner.html
+            const savedUrl = localStorage.getItem(`${appId}-custom-share-url`) || "https://storyrunner.html";
+            
+            // Instantly copy the URL directly to clipboard without displaying modal
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = savedUrl;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            showToast("連結複製成功！🎉", `已複製約跑日曆網址：${savedUrl}。快啲發送到 WhatsApp 群組叫大家填時間啦！💨`, "success");
+        }
+
+        function renderNicknameInputs() {
+            const container = document.getElementById('nickname-inputs-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                const color = friendColors[i];
+                const inputHtml = `
+                    <div class="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div class="h-8 w-8 rounded-lg ${color.bg} text-white font-bold text-sm flex items-center justify-center">
+                            ${i + 1}
+                        </div>
+                        <div class="flex-grow">
+                            <label class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">跑友 ${i + 1} 暱稱</label>
+                            <input type="text" value="${friendsNames[i]}" required
+                                   class="friend-name-input bg-transparent text-sm font-bold text-slate-700 focus:outline-none focus:ring-0 w-full" 
+                                   placeholder="輸入名字...">
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', inputHtml);
+            }
+        }
+
+        function showToast(title, msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const id = 'toast-' + Math.random().toString(36).substring(2, 9);
+            
+            let icon = '<i class="fa-solid fa-circle-info text-blue-500"></i>';
+            if (type === "success") {
+                icon = '<i class="fa-solid fa-circle-check text-green-500"></i>';
+            } else if (type === "warning") {
+                icon = '<i class="fa-solid fa-triangle-exclamation text-amber-500"></i>';
+            } else if (type === "error") {
+                icon = '<i class="fa-solid fa-circle-xmark text-rose-500"></i>';
+            }
+
+            const toastHtml = `
+                <div id="${id}" class="bg-white rounded-2xl shadow-xl border border-slate-100 p-4 pointer-events-auto flex items-start space-x-3 transition-all duration-300 transform translate-y-2 opacity-0 select-none">
+                    <div class="text-lg mt-0.5">
+                        ${icon}
+                    </div>
+                    <div class="flex-1">
+                        <h5 class="text-xs font-black text-slate-800">${title}</h5>
+                        <p class="text-[11px] text-slate-500 mt-0.5 leading-normal">${msg}</p>
+                    </div>
+                    <button onclick="document.getElementById('${id}').remove()" class="text-slate-300 hover:text-slate-500 transition">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHtml);
+
+            const el = document.getElementById(id);
+            setTimeout(() => {
+                if (el) el.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            setTimeout(() => {
+                if (el) {
+                    el.classList.add('opacity-0', 'translate-y-1');
+                    setTimeout(() => el.remove(), 300);
+                }
+            }, 4000);
+        }
+
+        window.onload = function() {
+            initialize();
+        }
+    </script>
+</body>
+</html>
