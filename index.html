@@ -323,7 +323,14 @@
         let auth;
         let currentUser = null;
         let appId = typeof __app_id !== 'undefined' ? __app_id : 'run-buddy-cal-2026';
-        let firebaseConfig;
+        const firebaseConfig = {
+            apiKey: "AIzaSyDHQLajKkJnQk9vyxbNjDWSkyp_TbDZ6M4",
+            authDomain: "storyrunner-86e7c.firebaseapp.com",
+            projectId: "storyrunner-86e7c",
+            storageBucket: "storyrunner-86e7c.firebasestorage.app",
+            messagingSenderId: "470467750762",
+            appId: "1:470467750762:web:756fc695f91e77fac21313"
+        };
 
         // Dynamic State
         let currentYearMonth = new Date(2026, 5, 1); // June 2026 as starting focus point
