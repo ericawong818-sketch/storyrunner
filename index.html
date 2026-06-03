@@ -6,11 +6,11 @@
     <title>🏃‍♂️ 說故事跑友 | 約跑日曆</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
+    <!-- Google Fonts for premium Look -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <!-- Confetti JS for 3+ friends celebration -->
+    <!-- Confetti JS for celebratory effect when 3+ friends are free -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
     <script>
@@ -46,7 +46,7 @@
     </script>
     
     <style>
-        /* Custom scrollbars for weather and side panels */
+        /* Custom scrollbar for beautiful dashboard lists */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
         }
@@ -61,26 +61,26 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: rgba(148, 163, 184, 0.8);
         }
-        /* Perfect day gold neon border */
+        /* Pulse glow for dates with 3+ friends attendance */
         .perfect-day-glow {
             box-shadow: 0 0 15px rgba(234, 179, 8, 0.35);
             border: 2px solid #eab308 !important;
         }
-        /* Rain warning border glows mapped to HKO PSR */
+        /* Warning border glows for severe rain forecasted on calendar tiles */
         .rain-warning-medium {
             border: 2px dashed #f59e0b !important;
-            background-color: #fef3c7/60 !important;
+            background-color: #fef3c7 !important;
         }
         .rain-warning-high {
             border: 2px dashed #f43f5e !important;
-            background-color: #ffe4e6/60 !important;
+            background-color: #ffe4e6 !important;
             animation: softPulseRain 2s infinite ease-in-out;
         }
         @keyframes softPulseRain {
             0%, 100% { box-shadow: 0 0 5px rgba(244, 63, 94, 0.1); }
             50% { box-shadow: 0 0 12px rgba(244, 63, 94, 0.25); }
         }
-        /* Scroll area styling */
+        /* Custom weather scroll container hide scrollbar on desktop but keep functional */
         .weather-scroll::-webkit-scrollbar {
             height: 6px;
         }
@@ -217,7 +217,7 @@
 
                 <!-- Calendar Grid Container -->
                 <div id="calendar-grid" class="grid grid-cols-7 gap-1.5 sm:gap-2 flex-grow min-h-[360px]">
-                    <!-- Rendered by JS -->
+                    <!-- Javascript will render monthly grid tiles dynamically here -->
                 </div>
                 
                 <!-- Quick Legend and tips -->
@@ -248,6 +248,7 @@
                     </h4>
                     
                     <div id="perfect-dates-list" class="space-y-2.5 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Rendered by JS -->
                         <div class="text-slate-400 text-sm italic py-2">本月暫時未有3人成團的日子，快點去標記你的時間啦！</div>
                     </div>
                 </div>
@@ -310,28 +311,36 @@
     <!-- NOTIFICATION TOAST WRAPPER -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
 
+    <!-- FIREBASE & CORE APPLICATION LOGIC -->
     <script type="module">
-        // Dynamic key-value store based on hostname to prevent collisions between projects
-        // If hosted on GitHub Pages, e.g. "ericawong818-sketch.github.io" -> bucket id: "ericawong818_sketch_github_io"
-        const hostname = window.location.hostname || "localhost";
-        const cleanBucketId = hostname.replace(/[^a-zA-Z0-9]/g, "_");
-        
-        // This public endpoint will safely host your cloud configuration
-        const CLOUD_DB_URL = `https://kvdb.io/storyrunner_bucket_${cleanBucketId}/v3_main_payload`;
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global state and UI references
+        let db;
+        let auth;
+        let currentUser = null;
+        let appId = typeof __app_id !== 'undefined' ? __app_id : 'run-buddy-cal-2026';
+        let firebaseConfig;
 
         // Dynamic State
-        let currentYearMonth = new Date(2026, 5, 1); // June 2026
-        let activeFriendIndex = 0; // Default: first runner
-        const todayDateObj = new Date(2026, 5, 3); // June 3, 2026
+        let currentYearMonth = new Date(2026, 5, 1); // June 2026 as starting focus point
+        let activeFriendIndex = 0; // Default is the first friend ("我")
         
-        // Default Local State definitions
+        // System Today's Date Context (June 3, 2026)
+        const todayDateObj = new Date(2026, 5, 3); // Month is 0-indexed (June = 5)
+        
+        // Base structures
         let friendsNames = ['跑友我', '跑友 A', '跑友 B', '跑友 C', '跑友 D'];
+        
+        // Default color choices indices for the 5 friends (mapped to colorOptions)
         let friendsColorChoices = [0, 1, 2, 3, 4]; 
-        window.tempColorChoices = [0, 1, 2, 3, 4];
-        let monthlyAvailabilities = {};
-        let lastCloudUpdateTimestamp = "";
 
-        // Ten high-contrast solid flat colors
+        // Temporary color choices in modal
+        window.tempColorChoices = [0, 1, 2, 3, 4];
+
+        // 10 high-quality SOLID FLAT colors
         window.colorOptions = [
             { name: "翡翠綠", bg: 'bg-emerald-500', text: 'text-emerald-500', ring: 'ring-emerald-400' },
             { name: "靛藍藍", bg: 'bg-indigo-500', text: 'text-indigo-500', ring: 'ring-indigo-400' },
@@ -345,6 +354,7 @@
             { name: "洋紅色", bg: 'bg-fuchsia-500', text: 'text-fuchsia-500', ring: 'ring-fuchsia-400' }
         ];
 
+        // Global Weather Store to map calendar tiles with rain warning
         let mappedWeatherList = {};
 
         // 2026 HK Public Holidays
@@ -368,139 +378,58 @@
             "2026-10-19": { name: "重陽節", isHoliday: true },
             "2026-12-25": { name: "聖誕節", isHoliday: true },
             "2026-12-26": { name: "聖誕節後第一個周日", isHoliday: true },
+            
+            // Father's Day
             "2026-06-21": { name: "父親節 👨‍👦", isHoliday: false }
         };
+        
+        let monthlyAvailabilities = {};
 
         async function initialize() {
             try {
-                // Fetch HK Weather
+                // Fetch latest weather forecast
                 await fetchHKOWeather();
-                
-                // Initialize first cloud payload download
-                await syncWithCloud();
-                
-                // Start background real-time synchronization every 5 seconds
-                setInterval(async () => {
-                    await syncWithCloud(true);
-                }, 5000);
 
-                // Hide Loading screen
-                const overlay = document.getElementById('loading-overlay');
-                if (overlay) {
-                    overlay.style.opacity = '0';
-                    setTimeout(() => overlay.style.display = 'none', 500);
+                if (typeof __firebase_config !== 'undefined') {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } else {
+                    console.warn("Firebase config not found, running with local storage fallback.");
+                    setupLocalStorageFallback();
+                    return;
                 }
 
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        updateConnectionIndicator(true);
+                        startRealtimeSync();
+                    } else {
+                        updateConnectionIndicator(false);
+                        showToast("連線中斷", "未能安全登入，請重試。", "error");
+                    }
+                });
+
             } catch (error) {
-                console.error("Initialization error:", error);
+                console.error("Firebase init failed, switching to local storage: ", error);
                 setupLocalStorageFallback();
             }
         }
 
-        // Zero-Configuration Cloud Sync Logic
-        async function syncWithCloud(isBackground = false) {
-            try {
-                const response = await fetch(CLOUD_DB_URL);
-                
-                // If 404, it means it's the first time visiting the site, initialize with default local data
-                if (response.status === 404) {
-                    await pushToCloud();
-                    updateConnectionIndicator(true);
-                    return;
-                }
-
-                if (!response.ok) throw new Error("Sync failed");
-                const cloudData = await response.json();
-
-                // Only update and re-render if remote timestamp is different (or newer)
-                if (cloudData && cloudData.updatedAt !== lastCloudUpdateTimestamp) {
-                    friendsNames = cloudData.names || friendsNames;
-                    friendsColorChoices = cloudData.colorChoices || friendsColorChoices;
-                    monthlyAvailabilities = cloudData.availabilities || {};
-                    lastCloudUpdateTimestamp = cloudData.updatedAt;
-
-                    renderFriendSelectors();
-                    renderNicknameInputs();
-                    renderCalendar();
-                    renderSidebarStats();
-                    
-                    if (isBackground) {
-                        showToast("雲端同步", "資料已跟隨其他跑友即時更新！⚡", "success");
-                    }
-                }
-                updateConnectionIndicator(true);
-
-            } catch (err) {
-                console.warn("Unable to sync, maintaining local/cached data.", err);
-                updateConnectionIndicator(false);
-                if (!isBackground) {
-                    setupLocalStorageFallback();
-                }
-            }
-        }
-
-        // Push latest local edits to key-value cloud store
-        async function pushToCloud() {
-            const timestamp = new Date().toISOString();
-            const payload = {
-                names: friendsNames,
-                colorChoices: friendsColorChoices,
-                availabilities: monthlyAvailabilities,
-                updatedAt: timestamp
-            };
-
-            // Save to local storage as safety backup
-            localStorage.setItem(`storyrunner-local-backup`, JSON.stringify(payload));
-            lastCloudUpdateTimestamp = timestamp;
-
-            try {
-                const response = await fetch(CLOUD_DB_URL, {
-                    method: 'PUT', // KVDB supports storing values via PUT
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error("Failed to upload data");
-                updateConnectionIndicator(true);
-            } catch (err) {
-                console.error("Cloud push failed:", err);
-                updateConnectionIndicator(false);
-                showToast("連線中斷", "未能同步至雲端，已儲存在本地快取。", "warning");
-            }
-        }
-
-        function updateConnectionIndicator(connected) {
-            const dot = document.getElementById('connection-indicator-dot');
-            const text = document.getElementById('connection-status-text');
-            if (connected) {
-                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-brand-500";
-                text.innerText = "雲端同步中";
-                text.className = "text-xs font-semibold tracking-wide text-brand-500";
-            } else {
-                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-amber-500";
-                text.innerText = "本地儲存模式";
-                text.className = "text-xs font-semibold tracking-wide text-amber-500";
-            }
-        }
-
-        function setupLocalStorageFallback() {
-            const cached = localStorage.getItem(`storyrunner-local-backup`);
-            if (cached) {
-                const data = JSON.parse(cached);
-                friendsNames = data.names || friendsNames;
-                friendsColorChoices = data.colorChoices || friendsColorChoices;
-                monthlyAvailabilities = data.availabilities || {};
-            }
-            renderFriendSelectors();
-            renderNicknameInputs();
-            renderCalendar();
-            renderSidebarStats();
-
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.style.display = 'none';
-        }
-
+        // Fetch Hong Kong Observatory 9-day Weather API
         async function fetchHKOWeather() {
+            const weatherContainer = document.getElementById('weather-container');
             const weatherTime = document.getElementById('weather-update-time');
+            
             try {
                 const res = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc');
                 if (!res.ok) throw new Error('Network error fetching HKO');
@@ -513,12 +442,15 @@
                         const now = new Date();
                         weatherTime.innerText = `天文台同步: ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                     }
+                } else {
+                    throw new Error('Invalid HKO format');
                 }
             } catch (err) {
+                console.warn("HKO API failed or CORS blocked. Rendering high-fidelity mock weather data for June 2026...", err);
                 const mockData = getMockWeatherData();
                 processWeatherMap(mockData);
                 renderWeather(mockData);
-                if (weatherTime) weatherTime.innerText = "天文台資訊 (預載 2026 初夏)";
+                if (weatherTime) weatherTime.innerText = "天文台資訊 (已預載 2026 年初夏)";
             }
         }
 
@@ -615,6 +547,97 @@
             });
         }
 
+        function setupLocalStorageFallback() {
+            updateConnectionIndicator(false);
+            const savedNames = localStorage.getItem(`${appId}-names`);
+            if (savedNames) {
+                friendsNames = JSON.parse(savedNames);
+            }
+            const savedColors = localStorage.getItem(`${appId}-colors`);
+            if (savedColors) {
+                friendsColorChoices = JSON.parse(savedColors);
+            }
+            const savedAvails = localStorage.getItem(`${appId}-avails`);
+            if (savedAvails) {
+                monthlyAvailabilities = JSON.parse(savedAvails);
+            }
+
+            renderFriendSelectors();
+            renderNicknameInputs();
+            renderCalendar();
+            renderSidebarStats();
+
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        function updateConnectionIndicator(connected) {
+            const dot = document.getElementById('connection-indicator-dot');
+            const text = document.getElementById('connection-status-text');
+            if (connected) {
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-brand-500";
+                text.innerText = "雲端同步中";
+                text.className = "text-xs font-semibold tracking-wide text-brand-500";
+            } else {
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-amber-500";
+                text.innerText = "本地儲存模式";
+                text.className = "text-xs font-semibold tracking-wide text-amber-500";
+            }
+        }
+
+        function startRealtimeSync() {
+            if (!currentUser) return;
+
+            // 1. Sync Nicknames and Color selections
+            const settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'friends');
+            onSnapshot(settingsDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.names) friendsNames = data.names;
+                    if (data.colorChoices) {
+                        friendsColorChoices = data.colorChoices;
+                    } else {
+                        friendsColorChoices = [0, 1, 2, 3, 4];
+                    }
+                    renderFriendSelectors();
+                    renderNicknameInputs();
+                    renderCalendar();
+                    renderSidebarStats();
+                } else {
+                    setDoc(settingsDocRef, { 
+                        names: friendsNames,
+                        colorChoices: friendsColorChoices 
+                    }).catch(e => console.error(e));
+                }
+            }, (error) => {
+                console.error("Nickname sync error: ", error);
+            });
+
+            // 2. Sync Date Availabilities
+            const availCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'availabilities');
+            onSnapshot(availCollectionRef, (querySnapshot) => {
+                const tempAvail = {};
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.date && Array.isArray(data.freeUsers)) {
+                        tempAvail[data.date] = data.freeUsers;
+                    }
+                });
+                monthlyAvailabilities = tempAvail;
+                
+                renderCalendar();
+                renderSidebarStats();
+                
+                const overlay = document.getElementById('loading-overlay');
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.style.display = 'none', 500);
+                }
+            }, (error) => {
+                console.error("Availability sync error: ", error);
+            });
+        }
+
         window.toggleAvailability = async function(dateStr) {
             const currentList = monthlyAvailabilities[dateStr] ? [...monthlyAvailabilities[dateStr]] : [];
             const indexInList = currentList.indexOf(activeFriendIndex);
@@ -634,15 +657,33 @@
             renderCalendar();
             renderSidebarStats();
 
-            // Direct sync with cloud key-value database
-            await pushToCloud();
-            showToast("更新成功", actionText, "success");
+            if (!db) {
+                localStorage.setItem(`${appId}-avails`, JSON.stringify(monthlyAvailabilities));
+                showToast("更新成功", actionText, "success");
+                if (currentList.length >= 3 && oldLength < 3) {
+                    triggerPerfectCelebration(currentList.length);
+                }
+                return;
+            }
 
-            if (currentList.length >= 3 && oldLength < 3) {
-                triggerPerfectCelebration(currentList.length);
+            const dateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'availabilities', dateStr);
+            try {
+                await setDoc(dateDocRef, {
+                    date: dateStr,
+                    freeUsers: currentList,
+                    updatedAt: new Date().toISOString()
+                });
+                showToast("更新成功", actionText, "success");
+                if (currentList.length >= 3 && oldLength < 3) {
+                    triggerPerfectCelebration(currentList.length);
+                }
+            } catch (err) {
+                console.error("Error updating state: ", err);
+                showToast("儲存失敗", "無法同步至雲端", "error");
             }
         }
 
+        // Custom name and color form submission
         window.saveNicknames = async function(event) {
             event.preventDefault();
             const inputs = document.querySelectorAll('.friend-name-input');
@@ -651,7 +692,7 @@
                 newNames.push(input.value.trim() || `跑友`);
             });
 
-            friendsNames = newNames;
+            // Save the temp choices to the main array
             friendsColorChoices = [...window.tempColorChoices];
 
             renderFriendSelectors();
@@ -659,10 +700,27 @@
             renderSidebarStats();
             closeNicknameModal();
 
-            await pushToCloud();
-            showToast("設定已同步", "跑友名字與顏色已安全寫入雲端！✨", "success");
+            if (!db) {
+                localStorage.setItem(`${appId}-names`, JSON.stringify(newNames));
+                localStorage.setItem(`${appId}-colors`, JSON.stringify(friendsColorChoices));
+                showToast("設定已儲存", "暱稱與專屬顏色已在本地儲存！✨", "success");
+                return;
+            }
+
+            try {
+                const settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'friends');
+                await setDoc(settingsDocRef, { 
+                    names: newNames,
+                    colorChoices: friendsColorChoices
+                });
+                showToast("設定已同步", "各位跑友名字與顏色已同步至雲端！✨", "success");
+            } catch (err) {
+                console.error("Failed to update names and colors: ", err);
+                showToast("更新失敗", "未能寫入雲端設定。", "error");
+            }
         }
 
+        // Render 5 user picker cards in step 1
         function renderFriendSelectors() {
             const container = document.getElementById('friend-selector-grid');
             if (!container) return;
@@ -673,6 +731,7 @@
                 const color = window.colorOptions[colorIdx] || window.colorOptions[0];
                 const isSelected = activeFriendIndex === i;
                 
+                // Modified to use light background with runner's specific colored border ring instead of dark/black slate bg
                 const activeClasses = isSelected 
                     ? `ring-4 ${color.ring} bg-slate-50 text-slate-800 shadow-md border-transparent scale-[1.03] font-bold` 
                     : `bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300`;
@@ -699,26 +758,28 @@
             activeFriendIndex = index;
             renderFriendSelectors();
             renderCalendar();
-            showToast("切換身份", `你現在是 「${friendsNames[index]}」，可以直接點選日子！`, "info");
+            showToast("切換身分", `你現在正在代表 「${friendsNames[index]}」 點選時間`, "info");
         };
 
+        // Render Full Interactive Calendar
         function renderCalendar() {
             const grid = document.getElementById('calendar-grid');
             const labelMonthYear = document.getElementById('calendar-month-year');
             if (!grid || !labelMonthYear) return;
 
             grid.innerHTML = '';
+
             const year = currentYearMonth.getFullYear();
-            const month = currentYearMonth.getMonth();
+            const month = currentYearMonth.getMonth(); // 0-indexed
 
             labelMonthYear.innerHTML = `<i class="fa-regular fa-calendar-days text-brand-500 mr-2"></i> ${year}年 ${month + 1}月`;
 
             const firstDayOfMonth = new Date(year, month, 1);
-            const startDayOfWeek = firstDayOfMonth.getDay();
+            const startDayOfWeek = firstDayOfMonth.getDay(); // 0 (Sun) - 6 (Sat)
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             const prevMonthDays = new Date(year, month, 0).getDate();
 
-            // Gray filler cells for previous month
+            // Render padding days from previous month
             for (let i = startDayOfWeek - 1; i >= 0; i--) {
                 const dayNum = prevMonthDays - i;
                 const dummyHtml = `
@@ -729,16 +790,18 @@
                 grid.insertAdjacentHTML('beforeend', dummyHtml);
             }
 
-            // Normal month tiles
+            // Render days of the month
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const cellDateObj = new Date(year, month, day);
-                const dayOfWeek = cellDateObj.getDay();
+                const dayOfWeek = cellDateObj.getDay(); // 0 (Sunday) to 6 (Saturday)
                 
+                // Compare with Today (June 3, 2026)
                 const isToday = year === 2026 && month === 5 && day === 3;
                 const isPast = cellDateObj < todayDateObj && !isToday;
 
                 const attendees = monthlyAvailabilities[dateStr] || [];
+                
                 const isPerfect = attendees.length >= 3;
                 const hasAttendees = attendees.length > 0;
                 const isActiveUserFree = attendees.includes(activeFriendIndex);
@@ -750,7 +813,7 @@
 
                 let cellBgClass = "bg-white hover:bg-slate-50/85 border-slate-200 text-slate-800";
                 
-                // Bold red text for public holidays & Sundays
+                // Sunday & Holiday must be red-themed
                 let dayNumberColor = "text-slate-800";
                 if (isRedDay || isSunday) {
                     dayNumberColor = "text-red-500 font-extrabold";
@@ -764,7 +827,7 @@
                     dayNumberColor = (isRedDay || isSunday) ? "text-red-600 font-black" : "text-brand-700 font-bold";
                 }
 
-                // Add dotted borders mapped with weather alert
+                // Weather link alert coloring for calendar tiles
                 let weatherAlertClass = "";
                 let weatherMiniBadge = "";
                 const localWeather = mappedWeatherList[dateStr];
@@ -779,7 +842,7 @@
                     }
                 }
 
-                // Highlight today card
+                // Highlight today
                 let todayBadgeHtml = '';
                 if (isToday) {
                     cellBgClass = "bg-blue-50/60 border-indigo-500 ring-2 ring-indigo-400 ring-offset-1";
@@ -799,7 +862,7 @@
 
                 const userIndicator = isActiveUserFree ? 'ring-2 ring-indigo-500/20 bg-indigo-50/20' : '';
 
-                // Attendee badges list
+                // Attendee visual indicators - FLAT PURE COLORS
                 let badgesHtml = '';
                 if (attendees.length > 0) {
                     badgesHtml = '<div class="flex flex-wrap gap-1 mt-1.5 max-w-full">';
@@ -860,7 +923,6 @@
                 grid.insertAdjacentHTML('beforeend', dayHtml);
             }
 
-            // Gray filler cells for next month
             const totalCellsRendered = startDayOfWeek + daysInMonth;
             const remainingGridSlots = 42 - totalCellsRendered;
             const daysToDraw = remainingGridSlots >= 7 ? remainingGridSlots - 7 : remainingGridSlots;
@@ -881,6 +943,7 @@
             renderSidebarStats();
         }
 
+        // Render Dashboard Stats & Golden Days List
         function renderSidebarStats() {
             const perfectDatesContainer = document.getElementById('perfect-dates-list');
             if (!perfectDatesContainer) return;
@@ -909,7 +972,7 @@
                 }
             });
 
-            // Golden dates layout
+            // Render Golden Days List
             perfectDatesContainer.innerHTML = '';
             if (perfectDays.length === 0) {
                 perfectDatesContainer.innerHTML = `
@@ -946,7 +1009,7 @@
                 });
             }
 
-            // Attendance bars with flat solid backgrounds
+            // Render Attendance bar charts - Flat SOLID styling
             const statsContainer = document.getElementById('friends-stats-container');
             if (statsContainer) {
                 statsContainer.innerHTML = '';
@@ -983,7 +1046,6 @@
             return days[dateObj.getDay()];
         }
 
-        // SCREEN SHOWER CELEBRATION
         window.triggerPerfectCelebration = function(count = 3) {
             const duration = 2 * 1000;
             const end = Date.now() + duration;
@@ -1011,8 +1073,8 @@
             showToast("🎉 3人成團起跑！", `今日有 ${count} 個人得閒啦！夠人出發，即刻組團！🏃‍♂️💨`, "success");
         }
 
-        // NICKNAME POPUP
         window.openNicknameModal = function() {
+            // Fill temporary color choices when modal opens
             window.tempColorChoices = [...friendsColorChoices];
             renderNicknameInputs();
 
@@ -1034,11 +1096,27 @@
         }
 
         window.selectModalColor = function(friendIdx, colorIdx) {
+            // Update temporary color choice in memory
             window.tempColorChoices[friendIdx] = colorIdx;
+            
+            // Re-render only inputs to reflect selected state
             renderNicknameInputs();
         }
 
-        // Render modal with 10 pure color buttons
+        window.copyShareLink = function() {
+            const savedUrl = localStorage.getItem(`${appId}-custom-share-url`) || "https://storyrunner.html";
+            
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = savedUrl;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            showToast("連結複製成功！🎉", `已複製約跑日曆網址：${savedUrl}。快啲發送到 WhatsApp 群組叫大家填時間啦！💨`, "success");
+        }
+
+        // Render the Edit modal with 10 Solid Color Circles
         function renderNicknameInputs() {
             const container = document.getElementById('nickname-inputs-container');
             if (!container) return;
@@ -1048,6 +1126,7 @@
                 const activeColorIdx = window.tempColorChoices[i];
                 const activeColor = window.colorOptions[activeColorIdx] || window.colorOptions[0];
 
+                // Generate 10 color dots
                 let colorPaletteHtml = '<div class="flex flex-wrap gap-2 mt-2 select-none">';
                 window.colorOptions.forEach((col, colorIdx) => {
                     const isSelected = activeColorIdx === colorIdx;
@@ -1074,6 +1153,7 @@
                             </div>
                         </div>
                         
+                        <!-- 10 Color Selection dots -->
                         <div class="pt-1">
                             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">選取專屬顏色：</span>
                             ${colorPaletteHtml}
@@ -1084,12 +1164,12 @@
             }
         }
 
-        // Notification popup toast
         function showToast(title, msg, type = "info") {
             const container = document.getElementById('toast-container');
             if (!container) return;
 
             const id = 'toast-' + Math.random().toString(36).substring(2, 9);
+            
             let icon = '<i class="fa-solid fa-circle-info text-blue-500"></i>';
             if (type === "success") {
                 icon = '<i class="fa-solid fa-circle-check text-green-500"></i>';
@@ -1101,7 +1181,9 @@
 
             const toastHtml = `
                 <div id="${id}" class="bg-white rounded-2xl shadow-xl border border-slate-100 p-4 pointer-events-auto flex items-start space-x-3 transition-all duration-300 transform translate-y-2 opacity-0 select-none">
-                    <div class="text-lg mt-0.5">${icon}</div>
+                    <div class="text-lg mt-0.5">
+                        ${icon}
+                    </div>
                     <div class="flex-1">
                         <h5 class="text-xs font-black text-slate-800">${title}</h5>
                         <p class="text-[11px] text-slate-500 mt-0.5 leading-normal">${msg}</p>
@@ -1114,7 +1196,10 @@
             container.insertAdjacentHTML('beforeend', toastHtml);
 
             const el = document.getElementById(id);
-            setTimeout(() => { if (el) el.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+            setTimeout(() => {
+                if (el) el.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
             setTimeout(() => {
                 if (el) {
                     el.classList.add('opacity-0', 'translate-y-1');
