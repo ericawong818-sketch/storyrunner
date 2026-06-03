@@ -391,13 +391,7 @@
                 // Fetch latest weather forecast
                 await fetchHKOWeather();
 
-                if (typeof __firebase_config !== 'undefined') {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                } else {
-                    console.warn("Firebase config not found, running with local storage fallback.");
-                    setupLocalStorageFallback();
-                    return;
-                }
+                console.log("正在使用引入的外部 firebaseconfig.js 啟動...");
 
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
