@@ -24,7 +24,6 @@
                         brand: {
                             50: '#f0fdf4',
                             100: '#dcfce7',
-                            5050: '#22c55e',
                             500: '#22c55e', // Run-themed energy green
                             600: '#16a34a',
                             700: '#15803d',
@@ -497,7 +496,7 @@
                     ? `${parseInt(rawDate.substring(4, 6))}月${parseInt(rawDate.substring(6, 8))}日` 
                     : day.forecastDate;
                 
-                const minTemp = day.forecastMaxtemp?.value || day.forecastMintemp?.value || 25;
+                const minTemp = day.forecastMintemp?.value || 25;
                 const maxTemp = day.forecastMaxtemp?.value || 30;
                 const weatherDesc = day.forecastWeather || "大致多雲";
                 const iconId = day.ForecastIcon || day.forecastIcon || 60;
