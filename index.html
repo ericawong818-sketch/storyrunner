@@ -323,7 +323,7 @@
         let auth;
         let currentUser = null;
         let appId = typeof __app_id !== 'undefined' ? __app_id : 'run-buddy-cal-2026';
-        let firebaseconfig.js;
+        import firebaseConfig from "./firebaseconfig.js";
 
         // Dynamic State
         let currentYearMonth = new Date(2026, 5, 1); // June 2026 as starting focus point
