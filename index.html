@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
@@ -329,8 +329,14 @@
         let currentYearMonth = new Date(2026, 5, 1); // June 2026 as starting focus point
         let activeFriendIndex = 0; // Default is the first friend ("我")
         
-        // System Today's Date Context (June 3, 2026)
-        const todayDateObj = new Date(2026, 5, 3); // Month is 0-indexed (June = 5)
+        // 統一換算成香港天文台時區（Asia/Hong_Kong）
+        const hkTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Hong_Kong" });
+        const todayDateObj = new Date(hkTimeStr); 
+
+        // 把香港時間的年月日抽出來備用
+        const hkYear = todayDateObj.getFullYear();
+        const hkMonth = todayDateObj.getMonth(); // 0-indexed
+        const hkDay = todayDateObj.getDate();
         
         // Base structures
         let friendsNames = ['跑友我', '跑友 A', '跑友 B', '跑友 C', '跑友 D'];
@@ -792,7 +798,7 @@
                 const dayOfWeek = cellDateObj.getDay(); // 0 (Sunday) to 6 (Saturday)
                 
                 // Compare with Today (June 3, 2026)
-                const isToday = year === 2026 && month === 5 && day === 3;
+                const isToday = year === hkYear && month === hkMonth && day === hkDay;
                 const isPast = cellDateObj < todayDateObj && !isToday;
 
                 const attendees = monthlyAvailabilities[dateStr] || [];
